@@ -1,6 +1,9 @@
-# CassandraMigrate
+# Cassandra Migrate
 
-TODO: Write a gem description
+This gem is designed to allow Cassandra migrations in very roughly the
+style of Rails migrations, but with a few extra features...  And
+without the Rails-style DSL for running the migrations.  CQL is
+basically fine.  But we *do* want Erb!
 
 ## Installation
 
@@ -16,9 +19,36 @@ Or install it yourself as:
 
     $ gem install cassandra_migrate
 
+You don't have to use cassandra_migrate as part of an app, but you'll
+need a recent (1.9.2+) Ruby with Rubygems.
+
 ## Usage
 
-TODO: Write usage instructions here
+You'll need a directory for Cassandra migrations.  Every migration
+should have a filename of the form:
+
+20131023000000_create_keyspace_argus_up.cql.erb
+
+The first fourteen digits are the date in YYYYMMDD format, followed
+by six digits of your choice -- base them on time, or just make sure
+they don't conflict.  You can't have two migrations with exactly the
+same fourteen-digit time code!
+
+Then you can use a freeform description, like "create_keyspace_argus"
+above.  Then an action, like "up" or "down" (later, scripts as well),
+and one or more extensions to tell Cassandra Migrate how to use the
+file.  Most commonly you'll want .cql or .cql.erb as the extension.
+Such files will be run through Cassandra, optionally after Erubis
+processing.
+
+Here's an example that uses Erb, in this case to set the replication
+factor of the keyspace via an environment variable:
+
+~~~
+# 20131024001100_create_keyspace_cryptic_up.cql.erb
+CREATE KEYSPACE "cryptic" WITH REPLICATION =
+  { 'class' : 'SimpleStrategy', 'replication_factor' : <%= ENV['CASS_REPLICATION'] || 1 %> };
+~~~
 
 ## Contributing
 

@@ -1,0 +1,22 @@
+#!/usr/bin/env ruby
+
+require "trollop"
+require "cassandra_migrate"
+
+OPTS = Trollop::opt do
+  banner <<-BANNER
+Migrate Cassandra to 
+  BANNER
+  opt :migration_dir, "Directory of Cassandra migrations",            :type => String,     :default => "cassandra_migrations"
+  opt :host,          "Cassandra host",                               :type => String,     :default => "localhost"
+  opt :port,          "Cassandra port",                               :type => Integer,    :default => 9160
+  opt :keyspace,      "Cassandra keyspace (optional)",                :type => String
+end
+
+CassandraMigrate.host = OPTS[:host]
+CassandraMigrate.port = OPTS[:port]
+CassandraMigrate.keyspace = OPTS[:keyspace]
+CassandraMigrate.migration_dir = OPTS[:migration_dir]
+
+migration_files = Dir[OPTS[:migration_dir]]
+up_migration_files = migrations.select { |f| f =~ /_up\.$/ }
