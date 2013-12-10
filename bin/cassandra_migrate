@@ -3,7 +3,7 @@
 require "trollop"
 require "cassandra_migrate"
 
-OPTS = Trollop::opt do
+OPTS = Trollop::options do
   banner <<-BANNER
 Migrate Cassandra to latest revision, based on your directory of migrations.
 
@@ -13,6 +13,7 @@ Usage: cassandra_migrate [options] [target_migration_date_or_file|latest|rollbac
   opt :host,          "Cassandra host",                               :type => String,     :default => "localhost"
   opt :port,          "Cassandra port",                               :type => Integer,    :default => 9160
   opt :keyspace,      "Cassandra keyspace (optional)",                :type => String
+  opt :dry_run,       "Dry run, print Cassandra commands"
 end
 
 Trollop::die "Must specify no more than one argument: date, filename, latest or rollback!" if ARGV.size > 1
@@ -26,13 +27,16 @@ migrate = CassandraMigrate.new
   migrate.send "#{arg}=", OPTS[arg]
 end
 
+options = {}
+options[:dry_run] = OPTS[:dry_run]
+
 case arg
 when "latest"
-  migrate.to_latest
+  migrate.to_latest options
 when "rollback"
-  migrate.rollback
-elsif arg =~ /^(\d{14})/
-  migrate.to_target $1
+  migrate.rollback options
+when proc { arg =~ /^(\d{14})/ }
+  migrate.to_target $1, options
 else
   raise "Didn't recognize argument as a 14-digit date string, a migration pathname, 'latest' or 'rollback': #{arg.inspect}!"
 end

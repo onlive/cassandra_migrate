@@ -7,23 +7,31 @@ require "erubis"
 
 require "digest/sha1"
 
-module CassandraMigrate
-  attr :host
-  attr :port
-  attr :keyspace
-  attr :migration_dir
+class CassandraMigrate
+  attr_accessor :host
+  attr_accessor :port
+  attr_accessor :keyspace
+  attr_accessor :migration_dir
 
   private
 
   def cql_client
     return @cassandra_client if @cassandra_client
 
-    @cassandra_client = Cql::Client.connect(:hosts => host, :port => port)
+    STDERR.puts "Connecting to Cassandra: #{host.inspect} / #{port.inspect}"
+    @cassandra_client = Cql::Client.connect(hosts: [host].flatten)#, port: port, consistency: :quorum)
     @cassandra_client.use(keyspace) if keyspace
+
+    @cassandra_client
   end
 
-  def execute_cql(cql)
-    cql_client.execute cql
+  def execute_cql(cql, options = {})
+    STDERR.puts "CQL: #{cql.inspect}"
+    if options[:dry_run]
+      puts "Dry run, execute: #{cql}"
+    else
+      cql_client.execute cql
+    end
   end
 
   def migrations_in_dir(refresh = false)
@@ -51,14 +59,16 @@ module CassandraMigrate
     @migrations_in_dir
   end
 
-  def ensure_schema_keyspace_exists
+  def ensure_schema_keyspace_exists(options = {})
     ks = execute_cql "SELECT keyspace_name FROM system.schema_keyspaces WHERE keyspace_name = 'schema';"
 
     if ks.empty?
+      raise "No schema keyspace in a dry run!" if options[:dry_run]
+
       peers = execute_cql "SELECT peer FROM system.peers;"
 
       @replication = [3, peers.size + 1].max
-      execute_cql <<-MIGRATION
+      execute_cql <<-MIGRATION, options
         CREATE KEYSPACE "schema" WITH REPLICATION =
           { 'class' : 'SimpleStrategy', 'replication_factor' : #{@replication} };
       MIGRATION
@@ -66,8 +76,10 @@ module CassandraMigrate
 
     cf = execute_cql "SELECT columnfamily_name FROM system.schema_columnfamilies WHERE columnfamily_name = 'migrations' AND keyspace_name = 'schema';"
     if cf.empty?
+      raise "No migration table in a dry run!" if options[:dry_run]
+
       execute_cql <<-MIGRATION
-        CREATE TABLE "migrations" (
+        CREATE TABLE "schema"."migrations" (
           "date_string" varchar,
           "up_filename" varchar,
           "sha1" varchar,
@@ -83,7 +95,7 @@ module CassandraMigrate
 
     @migrations_completed = {}
 
-    migrations = execute_cql "SELECT * FROM schema.migrations;"
+    migrations = execute_cql 'SELECT * FROM "schema"."migrations";'
     STDERR.puts "Migrations: #{migrations.inspect}"
     migrations.each do |migration|
       @migrations_completed[migration["date_string"]] = migration.to_hash
@@ -96,7 +108,7 @@ module CassandraMigrate
     Digest::SHA1.hexdigest File.read path
   end
 
-  def execute_migration_file(path)
+  def execute_migration_file(path, options)
     ensure_schema_keyspace_exists
 
     STDERR.puts "Executing migration file: #{path.inspect}"
@@ -119,7 +131,7 @@ module CassandraMigrate
 
     final_type = components.first
     if ["cql", "cqlsh"].include?(final_type)
-      execute_cql content
+      execute_cql content, options
     elsif ["erb", "erubis"].include?(final_type)
       raise "Can't use erb as the final extension in path #{path.inspect}!"
     else
@@ -135,8 +147,8 @@ module CassandraMigrate
     raise "Can't apply migration #{date_str} with no up migration!" unless migrations_in_dir[date_str][:actions][:up]
 
     up_filename = migrations_in_dir[date_str][:actions][:up][:file]
-    execute_migration_file up_filename
-    execute_cql "INSERT INTO schema.migrations (date_string, up_filename, sha1) VALUES ('#{date_str}', '#{up_filename}', '#{sha1 up_filename}')"
+    execute_migration_file up_filename, options
+    execute_cql "INSERT INTO schema.migrations (date_string, up_filename, sha1) VALUES ('#{date_str}', '#{up_filename}', '#{sha1 up_filename}')", options
   end
 
   def down(date_str, options = {})
@@ -144,8 +156,8 @@ module CassandraMigrate
     raise "Can't reverse migration #{date_str} that has no migration files!" unless migrations_in_dir[date_str]
     raise "Can't reverse migration #{date_str} with no down migration!" unless migrations_in_dir[date_str][:actions][:down]
 
-    execute_migration_file migrations_in_dir[date_str][:actions][:down][:file]
-    execute_cql "DELETE FROM schema.migrations WHERE date_string = '#{date_str}';"
+    execute_migration_file migrations_in_dir[date_str][:actions][:down][:file], options
+    execute_cql "DELETE FROM schema.migrations WHERE date_string = '#{date_str}';", options
   end
 
   def up_to(date_str, options = {})
@@ -168,20 +180,20 @@ module CassandraMigrate
     migrations_completed.keys.max
   end
 
-  def to_latest
-    up_to current_latest
+  def to_latest(options = {})
+    up_to current_latest, options
   end
 
   def to_target(date_str, options = {})
     if date_str < current_latest
-      down_to date_str
+      down_to date_str, options
     else
-      up_to date_str
+      up_to date_str, options
     end
   end
 
   def rollback(options = {})
-    down(current_latest)
+    down(current_latest, options)
   end
 
 end
