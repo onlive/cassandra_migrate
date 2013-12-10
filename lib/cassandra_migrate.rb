@@ -13,6 +13,8 @@ module CassandraMigrate
   attr :keyspace
   attr :migration_dir
 
+  private
+
   def cql_client
     return @cassandra_client if @cassandra_client
 
@@ -125,27 +127,29 @@ module CassandraMigrate
     end
   end
 
-  def up(date_str, options = {})
-    raise "Can't apply migration #{date_str} that already happened!" if @migrations_completed[date_str]
-    raise "Can't apply migration #{date_str} that has no migration files!" unless @migrations_in_dir[date_str]
-    raise "Can't apply migration #{date_str} with no up migration!" unless @migrations_in_dir[date_str][:actions][:up]
+  public
 
-    up_filename = @migrations_in_dir[date_str][:actions][:up][:file]
+  def up(date_str, options = {})
+    raise "Can't apply migration #{date_str} that already happened!" if migrations_completed[date_str]
+    raise "Can't apply migration #{date_str} that has no migration files!" unless migrations_in_dir[date_str]
+    raise "Can't apply migration #{date_str} with no up migration!" unless migrations_in_dir[date_str][:actions][:up]
+
+    up_filename = migrations_in_dir[date_str][:actions][:up][:file]
     execute_migration_file up_filename
     execute_cql "INSERT INTO schema.migrations (date_string, up_filename, sha1) VALUES ('#{date_str}', '#{up_filename}', '#{sha1 up_filename}')"
   end
 
   def down(date_str, options = {})
-    raise "Can't reverse migration #{date_str} that didn't happen!" unless @migrations_completed[date_str]
-    raise "Can't reverse migration #{date_str} that has no migration files!" unless @migrations_in_dir[date_str]
-    raise "Can't reverse migration #{date_str} with no down migration!" unless @migrations_in_dir[date_str][:actions][:down]
+    raise "Can't reverse migration #{date_str} that didn't happen!" unless migrations_completed[date_str]
+    raise "Can't reverse migration #{date_str} that has no migration files!" unless migrations_in_dir[date_str]
+    raise "Can't reverse migration #{date_str} with no down migration!" unless migrations_in_dir[date_str][:actions][:down]
 
-    execute_migration_file @migrations_in_dir[date_str][:actions][:down][:file]
+    execute_migration_file migrations_in_dir[date_str][:actions][:down][:file]
     execute_cql "DELETE FROM schema.migrations WHERE date_string = '#{date_str}';"
   end
 
   def up_to(date_str, options = {})
-    uncompleted_dates = @migrations_in_dir.keys - @migrations_completed.keys
+    uncompleted_dates = migrations_in_dir.keys - migrations_completed.keys
 
     migrations_to_run = uncompleted_dates.select { |d| d <= date_str }
 
@@ -154,20 +158,30 @@ module CassandraMigrate
   end
 
   def down_to(date_str, options = {})
-    migrations_to_run = @migrations_completed.keys.select { |d| d >= date_str }
+    migrations_to_run = migrations_completed.keys.select { |d| d >= date_str }
 
     STDERR.puts "Run #{migrations_to_run.size} migrations, roll back to #{date_str}."
     migrations_to_run.each { |m| down(m, options) }
   end
 
-  def go_to_target(date_str, options = {})
-    current_latest = @migrations_completed.keys.max
+  def current_latest
+    migrations_completed.keys.max
+  end
 
+  def to_latest
+    up_to current_latest
+  end
+
+  def to_target(date_str, options = {})
     if date_str < current_latest
       down_to date_str
     else
       up_to date_str
     end
+  end
+
+  def rollback(options = {})
+    down(current_latest)
   end
 
 end
