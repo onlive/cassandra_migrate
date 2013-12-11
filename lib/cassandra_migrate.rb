@@ -38,10 +38,17 @@ class CassandraMigrate
     return @migrations_in_dir if @migrations_in_dir && !refresh
 
     @migrations_in_dir = {}
-    Dir[migration_dir].each do |file|
-      next unless file =~ /^(\d{14})_/
+    Dir[File.join migration_dir, "*"].each do |file|
+      unless File.basename(file) =~ /^(\d{14})_/
+        puts "No match: #{file.inspect}"
+        next
+      end
 
-      m = /^(?<date_str>\d{14})_(?<desc>[^.]+)_(?<action>[^_.]+)(?<extensions>\..*)$/.match(file)
+      unless /^(?<date_str>\d{14})_(?<desc>[^.]+)_(?<action>[^_.]+)(?<extensions>\..*)$/ =~ File.basename(file)
+        puts "No match with regexp: #{file.inspect}"
+        next
+      end
+
       @migrations_in_dir[date_str] ||= {}
       migration = @migrations_in_dir[date_str]
       migration[:actions] ||= {}
@@ -55,6 +62,8 @@ class CassandraMigrate
         file: file
       }
     end
+
+    raise "No migrations in directory #{migration_dir.inspect}!  Did you mean to specify a migration directory?" if @migrations_in_dir.empty?
 
     @migrations_in_dir
   end
@@ -88,15 +97,14 @@ class CassandraMigrate
     end
   end
 
-  def migrations_completed(refresh = false)
+  def migrations_completed(refresh = false, options = {})
     return @migrations_completed if @migrations_completed && !refresh
 
-    ensure_schema_keyspace_exists
+    ensure_schema_keyspace_exists(options)
 
     @migrations_completed = {}
 
     migrations = execute_cql 'SELECT * FROM "schema"."migrations";'
-    STDERR.puts "Migrations: #{migrations.inspect}"
     migrations.each do |migration|
       @migrations_completed[migration["date_string"]] = migration.to_hash
     end
@@ -109,17 +117,17 @@ class CassandraMigrate
   end
 
   def execute_migration_file(path, options)
-    ensure_schema_keyspace_exists
+    ensure_schema_keyspace_exists(options)
 
     STDERR.puts "Executing migration file: #{path.inspect}"
 
-    components = path.split(".")
+    components = File.basename(path).split(".")
     components.shift   # Take just the extensions
 
     content = File.read path
 
     while components.size > 1
-      ext = components.shift
+      ext = components.pop
 
       if ext == "erb" || ext == "erubis"
         eruby = Erubis::Eruby.new content
@@ -142,7 +150,7 @@ class CassandraMigrate
   public
 
   def up(date_str, options = {})
-    raise "Can't apply migration #{date_str} that already happened!" if migrations_completed[date_str]
+    raise "Can't apply migration #{date_str} that already happened!" if migrations_completed(false,options)[date_str]
     raise "Can't apply migration #{date_str} that has no migration files!" unless migrations_in_dir[date_str]
     raise "Can't apply migration #{date_str} with no up migration!" unless migrations_in_dir[date_str][:actions][:up]
 
@@ -152,7 +160,7 @@ class CassandraMigrate
   end
 
   def down(date_str, options = {})
-    raise "Can't reverse migration #{date_str} that didn't happen!" unless migrations_completed[date_str]
+    raise "Can't reverse migration #{date_str} that didn't happen!" unless migrations_completed(false,options)[date_str]
     raise "Can't reverse migration #{date_str} that has no migration files!" unless migrations_in_dir[date_str]
     raise "Can't reverse migration #{date_str} with no down migration!" unless migrations_in_dir[date_str][:actions][:down]
 
@@ -161,8 +169,9 @@ class CassandraMigrate
   end
 
   def up_to(date_str, options = {})
-    uncompleted_dates = migrations_in_dir.keys - migrations_completed.keys
+    uncompleted_dates = migrations_in_dir.keys - migrations_completed(false,options).keys
 
+    STDERR.puts "Uncompleted: #{uncompleted_dates.inspect}"
     migrations_to_run = uncompleted_dates.select { |d| d <= date_str }
 
     STDERR.puts "Run #{migrations_to_run.size} migrations, update to #{date_str}."
@@ -170,22 +179,28 @@ class CassandraMigrate
   end
 
   def down_to(date_str, options = {})
-    migrations_to_run = migrations_completed.keys.select { |d| d >= date_str }
+    migrations_to_run = migrations_completed(false,options).keys.select { |d| d >= date_str }
 
     STDERR.puts "Run #{migrations_to_run.size} migrations, roll back to #{date_str}."
     migrations_to_run.each { |m| down(m, options) }
   end
 
-  def current_latest
-    migrations_completed.keys.max
+  def current_latest(options = {})
+    migrations_completed(false,options).keys.max
+  end
+
+  def latest_in_directory
+    migrations_in_dir.keys.max
   end
 
   def to_latest(options = {})
-    up_to current_latest, options
+    latest = latest_in_directory
+    raise "No latest migration!" unless latest
+    up_to latest, options
   end
 
   def to_target(date_str, options = {})
-    if date_str < current_latest
+    if date_str < current_latest(options)
       down_to date_str, options
     else
       up_to date_str, options
@@ -193,7 +208,7 @@ class CassandraMigrate
   end
 
   def rollback(options = {})
-    down(current_latest, options)
+    down(current_latest(options), options)
   end
 
 end
