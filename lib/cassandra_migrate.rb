@@ -24,12 +24,23 @@ class CassandraMigrate
   end
 
   def execute_cql(cql, options = {})
-    STDERR.puts "CQL: #{cql.inspect}"
+    # TODO: figure out how to pass args for prepared statements in
+
     if options[:dry_run]
       puts "Dry run, execute: #{cql}"
-    else
-      cql_client.execute cql
+      return
     end
+
+    last_result = nil
+    # Can only execute single chunks at once
+    cql.split(";").map(&:strip).select {|s| s != ""}.each do |statement|
+      # Prep-then-execute so that a syntax error will be detectable as such
+      prep = cql_client.prepare statement
+      last_result = prep.execute
+      puts "Executing CQL: #{statement}"
+    end
+
+    last_result
   end
 
   def migrations_in_dir(refresh = false)
@@ -74,7 +85,7 @@ class CassandraMigrate
 
       peers = execute_cql "SELECT peer FROM system.peers;"
 
-      @replication = [3, peers.size + 1].max
+      @replication = [3, peers.to_a.size + 1].min
       execute_cql <<-MIGRATION, options
         CREATE KEYSPACE "schema" WITH REPLICATION =
           { 'class' : 'SimpleStrategy', 'replication_factor' : #{@replication} };
@@ -154,7 +165,7 @@ class CassandraMigrate
 
     up_filename = migrations_in_dir[date_str][:actions][:up][:file]
     execute_migration_file up_filename, options
-    execute_cql "INSERT INTO schema.migrations (date_string, up_filename, sha1) VALUES ('#{date_str}', '#{up_filename}', '#{sha1 up_filename}')", options
+    execute_cql "INSERT INTO \"schema\".\"migrations\" (date_string, up_filename, sha1) VALUES ('#{date_str}', '#{up_filename}', '#{sha1 up_filename}')", options
   end
 
   def down(date_str, options = {})
@@ -163,7 +174,7 @@ class CassandraMigrate
     raise "Can't reverse migration #{date_str} with no down migration!" unless migrations_in_dir[date_str][:actions][:down]
 
     execute_migration_file migrations_in_dir[date_str][:actions][:down][:file], options
-    execute_cql "DELETE FROM schema.migrations WHERE date_string = '#{date_str}';", options
+    execute_cql "DELETE FROM \"schema\".\"migrations\" WHERE date_string = '#{date_str}';", options
   end
 
   def up_to(date_str, options = {})
