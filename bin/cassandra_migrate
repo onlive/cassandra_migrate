@@ -12,7 +12,6 @@ Usage: cassandra_migrate [options] [target_migration_date_or_file|latest|rollbac
   opt :migration_dir, "Directory of Cassandra migrations",            :type => String,     :default => "cassandra_migrations"
   opt :host,          "Cassandra host",                               :type => String,     :default => "localhost"
   opt :port,          "Cassandra port",                               :type => Integer,    :default => 9160
-  opt :keyspace,      "Cassandra keyspace (optional)",                :type => String
   opt :dry_run,       "Dry run, print Cassandra commands"
 end
 
@@ -23,7 +22,7 @@ arg = ARGV.size > 0 ? ARGV[0] : "latest"
 migrate = CassandraMigrate.new
 
 # Pass arguments along to the migrate object
-[:host, :port, :keyspace, :migration_dir].each do |arg|
+[:host, :port, :migration_dir].each do |arg|
   migrate.send "#{arg}=", OPTS[arg]
 end
 

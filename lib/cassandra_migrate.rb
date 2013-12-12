@@ -10,7 +10,6 @@ require "digest/sha1"
 class CassandraMigrate
   attr_accessor :host
   attr_accessor :port
-  attr_accessor :keyspace
   attr_accessor :migration_dir
 
   private
@@ -20,7 +19,6 @@ class CassandraMigrate
 
     STDERR.puts "Connecting to Cassandra: #{host.inspect} / #{port.inspect}"
     @cassandra_client = Cql::Client.connect(hosts: [host].flatten)#, port: port, consistency: :quorum)
-    @cassandra_client.use(keyspace) if keyspace
 
     @cassandra_client
   end
