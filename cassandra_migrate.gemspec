@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.version       = CassandraMigrate::VERSION
   spec.authors       = ["Noah Gibbs"]
   spec.email         = ["noah.gibbs@onlive.com"]
-  spec.description   = %q{TODO: Write a gem description}
-  spec.summary       = %q{TODO: Write a gem summary}
+  spec.description   = %q{Migrations for Cassandra in CQL and Erb.}
+  spec.summary       = %q{Migrations for Cassandra in CQL and Erb.}
   spec.homepage      = ""
   spec.license       = "MIT"
 
