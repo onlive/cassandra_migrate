@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# Copyright (C) 2013 OL2, inc.  See LICENSE.txt for details.
 
 require "trollop"
 require "cassandra_migrate"
