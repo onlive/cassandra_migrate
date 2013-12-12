@@ -24,8 +24,6 @@ class CassandraMigrate
   end
 
   def execute_cql(cql, options = {})
-    # TODO: figure out how to pass args for prepared statements in
-
     if options[:dry_run]
       puts "Dry run, execute: #{cql}"
       return
@@ -35,8 +33,7 @@ class CassandraMigrate
     # Can only execute single chunks at once
     cql.split(";").map(&:strip).select {|s| s != ""}.each do |statement|
       # Prep-then-execute so that a syntax error will be detectable as such
-      prep = cql_client.prepare statement
-      last_result = prep.execute
+      last_result = cql_client.execute statement
       puts "Executing CQL: #{statement}"
     end
 
