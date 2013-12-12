@@ -11,7 +11,7 @@ Usage: cassandra_migrate [options] [target_migration_date_or_file|latest|rollbac
   BANNER
   opt :migration_dir, "Directory of Cassandra migrations",            :type => String,     :default => "cassandra_migrations"
   opt :host,          "Cassandra host",                               :type => String,     :default => "localhost"
-  opt :port,          "Cassandra port",                               :type => Integer,    :default => 9160
+  opt :port,          "Cassandra port",                               :type => Integer,    :default => 9042
   opt :dry_run,       "Dry run, print Cassandra commands"
 end
 

@@ -18,7 +18,7 @@ class CassandraMigrate
     return @cassandra_client if @cassandra_client
 
     STDERR.puts "Connecting to Cassandra: #{host.inspect} / #{port.inspect}"
-    @cassandra_client = Cql::Client.connect(hosts: [host].flatten)#, port: port, consistency: :quorum)
+    @cassandra_client = Cql::Client.connect(hosts: [host].flatten, port: port, consistency: :quorum)
 
     @cassandra_client
   end
