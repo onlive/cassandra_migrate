@@ -24,6 +24,23 @@ need a recent (1.9.2+) Ruby with Rubygems.
 
 ## Usage
 
+To run migrations from the current directory if you have them:
+
+> cassandra_migrate latest
+
+You can also migrate to a filename or a date string, either of which
+will use the date as the important part -- you'll migrate forward or
+back until the specified migration is the last one performed.  You can
+also roll back a single migration:
+
+> cassandra_migrate rollback
+
+See other options:
+
+> cassandra_migrate --help
+
+## Writing Migrations
+
 You'll need a directory for Cassandra migrations.  Every migration
 should have a filename of the form:
 

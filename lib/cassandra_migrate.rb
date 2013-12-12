@@ -185,7 +185,7 @@ class CassandraMigrate
   end
 
   def down_to(date_str, options = {})
-    migrations_to_run = migrations_completed(false,options).keys.select { |d| d >= date_str }
+    migrations_to_run = migrations_completed(false,options).keys.select { |d| d > date_str }
 
     STDERR.puts "Run #{migrations_to_run.size} migrations, roll back to #{date_str}."
     migrations_to_run.each { |m| down(m, options) }
