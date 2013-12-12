@@ -57,3 +57,11 @@ CREATE KEYSPACE "cryptic" WITH REPLICATION =
 3. Commit your changes (`git commit -am 'Add some feature'`)
 4. Push to the branch (`git push origin my-new-feature`)
 5. Create new Pull Request
+
+## Future Directions
+
+A cassandra_migrate_rails gem could add generators for simple
+Cassandra migrations from Rails.
+
+We could add Ruby, bash or other scripts/executables to be run before
+and after migrations, or as the migration itself.
