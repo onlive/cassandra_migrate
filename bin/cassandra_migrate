@@ -38,5 +38,5 @@ when "rollback"
 when proc { arg =~ /^(\d{14})/ }
   migrate.to_target $1, options
 else
-  raise "Didn't recognize argument as a 14-digit date string, a migration pathname, 'latest' or 'rollback': #{arg.inspect}!"
+  raise "Didn't recognize argument as a 14-digit date string, a migration filename, 'latest' or 'rollback': #{arg.inspect}!"
 end
